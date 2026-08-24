@@ -1,51 +1,55 @@
-import { account } from "./appwrite";
-import { ID } from "react-native-appwrite";
+import * as SecureStore from "expo-secure-store";
+import { api } from "./api";
 
-const authService = {
-  // Register a new user
-  async register(email, password) {
-    try {
-      const response = await account.create(ID.unique(), email, password);
-      return response;
-    } catch (error) {
-      return {
-        error: error.message || "Registration failed. Please try again.",
-      };
-    }
-  },
-  // Login user
-  async login(email, password) {
-    try {
-      const response = await account.createEmailPasswordSession(
-        email,
-        password
-      );
-      return response;
-    } catch (error) {
-      return {
-        error: error.message || "Login failed. Please check your credentials.",
-      };
-    }
-  },
+const TOKEN_KEY = "auth_token";
 
-  // Get logged in user
-  async getUser() {
-    try {
-      return await account.get();
-    } catch (error) {
-      return null;
-    }
-  },
-  // Logout user
-  async logout() {
-    try {
-      await account.deleteSession("current");
-    } catch (error) {
-      return {
-        error: error.message || "Logout failed. Please try again.",
-      };
-    }
-  },
+export const register = async (email, password) => {
+  const data = await api.post("/auth/register", {
+    email,
+    password,
+  });
+
+  await SecureStore.setItemAsync(TOKEN_KEY, data.token);
+
+  return data;
 };
 
-export default authService;
+export const login = async (email, password) => {
+  const data = await api.post("/auth/login", {
+    email,
+    password,
+  });
+
+  await SecureStore.setItemAsync(TOKEN_KEY, data.token);
+
+  return data;
+};
+
+export const getToken = async () => {
+  return await SecureStore.getItemAsync(TOKEN_KEY);
+};
+
+export const logout = async () => {
+  await SecureStore.deleteItemAsync(TOKEN_KEY);
+};
+
+export const getCurrentUser = async () => {
+  const token = await getToken();
+
+  if (!token) {
+    return null;
+  }
+
+  try {
+    const data = await api.get("/auth/me", {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    return data.user;
+  } catch {
+    await logout();
+    return null;
+  }
+};
